@@ -1,0 +1,40 @@
+Transactions
+
+Completed
+
+May 9, 2026
+
+Visa ****3255
+Order #114-9438781-1514629
+AMZN Mktp US
+-$17.41
+
+Visa ****3255
+Order #114-5320950-2562649
+AMZN Mktp US
+-$15.23
+
+Visa ****3255
+Order #114-8703631-4565046
+AMZN Mktp US
+-$55.50
+
+Visa ****3255
+Order #114-2566785-8875417
+AMZN Mktp US
+-$48.33
+
+Visa ****3255
+Order #114-8703631-4565046
+AMZN Mktp US
+-$18.50
+
+In Progress
+
+May 9, 2026
+
+Visa ****3255
+Pending
+Order #114-1159043-5273819
+AMZN Mktp US
+-$47.87

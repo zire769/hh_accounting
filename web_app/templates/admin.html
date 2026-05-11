@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Import</title>
+  <style>
+    :root { --bg:#f5f6f8; --panel:#fff; --ink:#111827; --muted:#5b6472; --line:#d9dde5; --accent:#0f766e; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family:Arial,sans-serif; }
+    header { background:var(--panel); border-bottom:1px solid var(--line); }
+    .bar, main { max-width:920px; margin:0 auto; }
+    .bar { padding:14px 18px; display:grid; grid-template-columns:1fr auto auto; gap:10px; align-items:center; }
+    main { padding:18px; display:grid; gap:16px; }
+    h1 { margin:0; font-size:22px; }
+    h2 { margin:0 0 10px; font-size:18px; }
+    .sub, .muted { color:var(--muted); font-size:13px; }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px; }
+    a.button, button { border:1px solid var(--line); border-radius:6px; background:white; height:34px; padding:0 10px; cursor:pointer; color:var(--ink); text-decoration:none; display:inline-flex; align-items:center; justify-content:center; font:inherit; }
+    button.primary { background:var(--accent); color:white; border-color:var(--accent); }
+    label { display:block; margin-top:12px; font-weight:700; font-size:13px; }
+    input[type="text"], input[type="file"] { width:100%; margin-top:5px; border:1px solid var(--line); border-radius:6px; background:white; padding:8px; font:inherit; }
+    .check { display:flex; gap:8px; align-items:center; margin:12px 0; font-weight:400; }
+    .check input { margin:0; }
+    .messages { display:grid; gap:8px; }
+    .message { background:#e8f5f1; border:1px solid #a7d7c5; border-radius:6px; padding:10px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="bar">
+      <div>
+        <h1>Admin Import</h1>
+        <div class="sub">Upload generated reconciliation CSVs into this private review app.</div>
+      </div>
+      <a class="button" href="{{ url_for('bank') }}">Review</a>
+      <form method="post" action="{{ url_for('logout') }}"><button type="submit">Sign out</button></form>
+    </div>
+  </header>
+  <main>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="messages">
+          {% for message in messages %}
+            <div class="message">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <section class="panel">
+      <h2>Bank Review CSV</h2>
+      <p class="muted">Use the generated <strong>chase_bank_review_by_card.csv</strong> file for the accountant's main review screen.</p>
+      <form method="post" action="{{ url_for('admin_import_bank') }}" enctype="multipart/form-data">
+        <label>Batch name</label>
+        <input name="batch" type="text" value="april_2026_chase_bank_by_card">
+        <label>Bank review CSV</label>
+        <input name="bank_review" type="file" accept=".csv" required>
+        <label class="check"><input name="replace_batch" type="checkbox" checked> Replace existing rows with this batch name</label>
+        <button class="primary" type="submit">Import bank review</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Amazon Match CSVs</h2>
+      <p class="muted">Optional: upload <strong>amazon_charge_matches.csv</strong> and <strong>amazon_order_summary.csv</strong> for the Amazon-centric view.</p>
+      <form method="post" action="{{ url_for('admin_import_matches') }}" enctype="multipart/form-data">
+        <label>Batch name</label>
+        <input name="batch" type="text" value="april_2026_chase_all_cards">
+        <label>Amazon charge matches CSV</label>
+        <input name="matches" type="file" accept=".csv" required>
+        <label>Amazon order summary CSV</label>
+        <input name="orders" type="file" accept=".csv" required>
+        <label class="check"><input name="replace_batch" type="checkbox" checked> Replace existing rows with this batch name</label>
+        <button class="primary" type="submit">Import Amazon matches</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,22 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.DS_Store
+
+# Non-app workspace artifacts.
+*.pdf
+*.jpg
+*.jpeg
+*.png
+AptHue_Cafe_Traffic_Evaluation.md
+
+# Raw source data and generated reports can contain financial information.
+data/*
+output/
+
+# Local browser automation state.
+data/browser-profile*/
+data/*.log
+data/*.signal

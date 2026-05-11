@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Amazon Review Portal</title>
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --panel: #ffffff;
+      --ink: #111827;
+      --muted: #5b6472;
+      --line: #d9dde5;
+      --accent: #0f766e;
+      --good-bg: #e8f5f1;
+      --warn-bg: #fff7ed;
+      --bad-bg: #fef2f2;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: Arial, sans-serif; }
+    header { position: sticky; top: 0; z-index: 2; background: var(--panel); border-bottom: 1px solid var(--line); }
+    .bar { max-width: 1320px; margin: 0 auto; padding: 14px 18px; display: grid; grid-template-columns: 1fr auto auto auto auto; gap: 10px; align-items: center; }
+    h1 { margin: 0; font-size: 22px; }
+    .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    main { max-width: 1320px; margin: 0 auto; padding: 18px; }
+    a.button, button { border: 1px solid var(--line); border-radius: 6px; background: white; height: 34px; padding: 0 10px; cursor: pointer; color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; font: inherit; }
+    a.primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .logout { display: inline; }
+    .stats { display: grid; grid-template-columns: repeat(6, minmax(110px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+    .stat b { display: block; font-size: 20px; }
+    .stat span { color: var(--muted); font-size: 12px; }
+    .filters { display: grid; grid-template-columns: minmax(220px, 1fr) repeat(5, auto); gap: 10px; margin-bottom: 14px; }
+    input, select, textarea { font: inherit; border: 1px solid var(--line); border-radius: 6px; background: white; }
+    input, select { height: 36px; padding: 0 10px; min-width: 0; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    th, td { border-bottom: 1px solid var(--line); padding: 8px; font-size: 13px; text-align: left; vertical-align: top; }
+    th { background: #eef1f5; position: sticky; top: 63px; z-index: 1; }
+    tr:last-child td { border-bottom: 0; }
+    tr.approved { background: var(--good-bg); }
+    tr.review { background: var(--warn-bg); }
+    tr.rejected { background: var(--bad-bg); }
+    .pill { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 3px 7px; background: white; font-size: 12px; white-space: nowrap; }
+    .amount { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .muted { color: var(--muted); }
+    .mono { font-family: Consolas, monospace; }
+    textarea { width: 100%; min-width: 170px; height: 48px; padding: 6px; resize: vertical; }
+    .decision { display: grid; gap: 6px; min-width: 180px; }
+    .buttons { display: flex; flex-wrap: wrap; gap: 5px; }
+    .buttons button { height: 28px; font-size: 12px; }
+    @media (max-width: 900px) {
+      .bar, .stats, .filters { grid-template-columns: 1fr; }
+      th { position: static; }
+      table { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="bar">
+      <div>
+        <h1>Amazon Review Portal</h1>
+        <div class="sub">Approve/reject Amazon charge matches. Decisions persist in the shared database.</div>
+      </div>
+      <a class="button" href="{{ url_for('bank') }}">Bank view</a>
+      <a class="button" href="{{ url_for('admin') }}">Admin</a>
+      <a class="button primary" href="{{ url_for('export_approved') }}">Export approved CSV</a>
+      <form class="logout" method="post" action="{{ url_for('logout') }}"><button type="submit">Sign out</button></form>
+    </div>
+  </header>
+  <main>
+    <section class="stats">
+      <div class="stat"><b>{{ stats.total }}</b><span>Total rows</span></div>
+      <div class="stat"><b>{{ stats.matched }}</b><span>Matched</span></div>
+      <div class="stat"><b>{{ stats.split }}</b><span>Split rows</span></div>
+      <div class="stat"><b>{{ stats.approved }}</b><span>Approved</span></div>
+      <div class="stat"><b>{{ stats.review }}</b><span>Needs review</span></div>
+      <div class="stat"><b>{{ stats.rejected }}</b><span>Rejected</span></div>
+    </section>
+    <form class="filters" method="get">
+      <input name="q" value="{{ filters.q }}" placeholder="Search order, amount, card, bank text">
+      <select name="review_state">
+        <option value="">All review states</option>
+        <option value="approved" {% if filters.review_state == 'approved' %}selected{% endif %}>Approved</option>
+        <option value="review" {% if filters.review_state == 'review' %}selected{% endif %}>Needs review</option>
+        <option value="rejected" {% if filters.review_state == 'rejected' %}selected{% endif %}>Rejected</option>
+      </select>
+      <select name="match_status">
+        <option value="">All match statuses</option>
+        <option value="Matched" {% if filters.match_status == 'Matched' %}selected{% endif %}>Matched</option>
+        <option value="Needs review" {% if filters.match_status == 'Needs review' %}selected{% endif %}>Needs review</option>
+      </select>
+      <select name="split">
+        <option value="">All orders</option>
+        <option value="split" {% if filters.split == 'split' %}selected{% endif %}>Split only</option>
+        <option value="single" {% if filters.split == 'single' %}selected{% endif %}>Single only</option>
+      </select>
+      <select name="card_last4">
+        <option value="">All cards</option>
+        {% for card in cards %}
+          <option value="{{ card }}" {% if filters.card_last4 == card %}selected{% endif %}>Card {{ card }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit">Filter</button>
+    </form>
+    <table>
+      <thead>
+        <tr>
+          <th>Review</th>
+          <th>Amazon</th>
+          <th class="amount">Amount</th>
+          <th>Bank</th>
+          <th>Split</th>
+          <th>Confidence</th>
+          <th>Decision</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr class="{{ row.review_state }}">
+            <td><span class="pill">{{ row.review_state }}</span></td>
+            <td>
+              <div class="mono">{{ row.order_id }}</div>
+              <div>{{ row.amazon_date }} · Card ****{{ row.card_last4 }}</div>
+              <div class="muted">{{ row.merchant or 'Amazon' }}</div>
+            </td>
+            <td class="amount">${{ "%.2f"|format(row.amazon_amount) }}</td>
+            <td>
+              <span class="pill">{{ row.match_status }}</span>
+              <div>{{ row.bank_date or '' }}{% if row.bank_amount is not none %} · ${{ "%.2f"|format(row.bank_amount) }}{% endif %}</div>
+              <div class="muted">{{ row.bank_description or '' }}</div>
+            </td>
+            <td>
+              {% if row.split_charge_count > 1 %}
+                {{ row.split_charge_index }}/{{ row.split_charge_count }} · group ${{ "%.2f"|format(row.split_group_total or 0) }}
+              {% else %}
+                single
+              {% endif %}
+            </td>
+            <td>
+              <b>{{ row.confidence }}</b>
+              <div class="muted">{{ row.reason }}</div>
+            </td>
+            <td>
+              <form class="decision" method="post" action="{{ url_for('decision', row_id=row.id) }}">
+                <textarea name="note" placeholder="Add note">{{ row.note }}</textarea>
+                <div class="buttons">
+                  <button name="review_state" value="approved" type="submit">Approve</button>
+                  <button name="review_state" value="review" type="submit">Review</button>
+                  <button name="review_state" value="rejected" type="submit">Reject</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </main>
+</body>
+</html>
