@@ -2,7 +2,7 @@ services:
   - type: web
     name: hue-house-amazon-review
     runtime: python
-    plan: starter
+    plan: free
     region: oregon
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn --bind 0.0.0.0:$PORT web_app.app:app
@@ -13,9 +13,5 @@ services:
         sync: false
       - key: REVIEW_APP_SECRET
         generateValue: true
-      - key: REVIEW_DB_PATH
-        value: /var/data/review_app.sqlite3
-    disk:
-      name: review-data
-      mountPath: /var/data
-      sizeGB: 1
+      - key: DATABASE_URL
+        sync: false

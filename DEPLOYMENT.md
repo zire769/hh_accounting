@@ -6,10 +6,10 @@ The review portal can run for an accountant outside your network, but do not exp
 
 Use this when the accountant should have a stable URL from anywhere.
 
-Recommended shape:
+Recommended free shape:
 
 ```text
-Flask app + SQLite/Postgres database + HTTPS host + password login
+Render Free Web Service + external Postgres database + HTTPS + password login
 ```
 
 Required environment variables:
@@ -17,6 +17,7 @@ Required environment variables:
 ```text
 REVIEW_APP_PASSWORD
 REVIEW_APP_SECRET
+DATABASE_URL
 ```
 
 Production command:
@@ -31,13 +32,9 @@ Render Blueprint:
 render.yaml
 ```
 
-The Blueprint creates a Python web service, sets `/health` as the health check, and attaches a persistent disk at `/var/data`. The app writes SQLite data to:
+The Blueprint creates a free Python web service and sets `/health` as the health check. The app uses Postgres when `DATABASE_URL` is present, so no paid Render disk is required. Render requires web services to bind to `0.0.0.0` and the provided `$PORT`; the Blueprint start command does this.
 
-```text
-/var/data/review_app.sqlite3
-```
-
-Render requires web services to bind to `0.0.0.0` and the provided `$PORT`; the Blueprint start command does this.
+Free database options include Supabase, Neon, or any hosted Postgres provider that gives you a normal Postgres connection string. Paste that connection string into Render as `DATABASE_URL`.
 
 After the first deploy, log in and open:
 
@@ -79,7 +76,7 @@ Cloudflare Tunnel maps a public hostname to a local service and proxies HTTPS tr
 
 ## Local Data
 
-Local app data lives at:
+Local app data still uses SQLite when `DATABASE_URL` is not set:
 
 ```text
 data/review_app.sqlite3

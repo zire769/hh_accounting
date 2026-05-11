@@ -146,6 +146,6 @@ For a deployed app with no local seed database, log in and open:
 
 Upload `chase_bank_review_by_card.csv` for the main accountant review screen. You can also upload `amazon_charge_matches.csv` plus `amazon_order_summary.csv` for the Amazon-centric view.
 
-For remote accountant access, deploy the Flask app behind HTTPS with a real password and a persistent SQLite/Postgres database. Do not expose the local development server directly to the internet.
+For remote accountant access, deploy the Flask app behind HTTPS with a real password and a Postgres `DATABASE_URL`. Local development still uses SQLite when `DATABASE_URL` is not set. Do not expose the local development server directly to the internet.
 
 Remote deployment notes are in `DEPLOYMENT.md`.

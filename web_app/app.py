@@ -9,6 +9,7 @@ import io
 import os
 import secrets
 import sqlite3
+from typing import Any
 
 from flask import (
     Flask,
@@ -22,6 +23,7 @@ from flask import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 DB_PATH = Path(os.environ.get("REVIEW_DB_PATH", ROOT / "data" / "review_app.sqlite3"))
 SEED_DB_PATH = ROOT / "data" / "review_app.sqlite3"
 DEFAULT_PASSWORD = "change-me"
@@ -124,7 +126,7 @@ def create_app() -> Flask:
         rows = read_uploaded_csv(upload)
         with connect() as conn:
             if request.form.get("replace_batch"):
-                conn.execute("DELETE FROM bank_review_rows WHERE source_batch = ?", (batch,))
+                db_execute(conn, "DELETE FROM bank_review_rows WHERE source_batch = ?", (batch,))
             import_bank_review_rows(conn, rows, batch)
         flash(f"Imported {len(rows)} bank review rows into batch {batch}.")
         return redirect(url_for("bank"))
@@ -142,7 +144,7 @@ def create_app() -> Flask:
         orders = {row["order_id"]: row for row in read_uploaded_csv(orders_upload) if row.get("order_id")}
         with connect() as conn:
             if request.form.get("replace_batch"):
-                conn.execute("DELETE FROM review_rows WHERE source_batch = ?", (batch,))
+                db_execute(conn, "DELETE FROM review_rows WHERE source_batch = ?", (batch,))
             import_match_rows(conn, matches, orders, batch)
         flash(f"Imported {len(matches)} Amazon match rows into batch {batch}.")
         return redirect(url_for("index"))
@@ -155,7 +157,8 @@ def create_app() -> Flask:
         if review_state not in {"approved", "review", "rejected"}:
             review_state = "review"
         with connect() as conn:
-            conn.execute(
+            db_execute(
+                conn,
                 """
                 UPDATE review_rows
                 SET review_state = ?, note = ?, updated_at = ?
@@ -173,7 +176,8 @@ def create_app() -> Flask:
         if review_state not in {"approved", "review", "rejected"}:
             review_state = "review"
         with connect() as conn:
-            conn.execute(
+            db_execute(
+                conn,
                 """
                 UPDATE bank_review_rows
                 SET review_state = ?, note = ?, updated_at = ?
@@ -257,12 +261,44 @@ def create_app() -> Flask:
 
 
 def init_db() -> None:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if not DB_PATH.exists() and SEED_DB_PATH.exists() and SEED_DB_PATH.resolve() != DB_PATH.resolve():
-        DB_PATH.write_bytes(SEED_DB_PATH.read_bytes())
+    if not using_postgres():
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        if not DB_PATH.exists() and SEED_DB_PATH.exists() and SEED_DB_PATH.resolve() != DB_PATH.resolve():
+            DB_PATH.write_bytes(SEED_DB_PATH.read_bytes())
     with connect() as conn:
-        conn.execute(
+        db_execute(conn, review_rows_schema())
+        db_execute(conn, bank_review_rows_schema())
+
+
+def review_rows_schema() -> str:
+    if using_postgres():
+        return """
+            CREATE TABLE IF NOT EXISTS review_rows (
+                id SERIAL PRIMARY KEY,
+                order_id TEXT NOT NULL,
+                amazon_date TEXT,
+                amazon_status TEXT,
+                card_last4 TEXT,
+                amazon_amount DOUBLE PRECISION NOT NULL,
+                merchant TEXT,
+                bank_row_id TEXT,
+                bank_date TEXT,
+                bank_amount DOUBLE PRECISION,
+                bank_description TEXT,
+                match_status TEXT,
+                confidence INTEGER,
+                reason TEXT,
+                split_status TEXT,
+                split_group_total DOUBLE PRECISION,
+                split_charge_count INTEGER,
+                split_charge_index INTEGER,
+                review_state TEXT NOT NULL DEFAULT 'review',
+                note TEXT NOT NULL DEFAULT '',
+                source_batch TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL
+            )
             """
+    return """
             CREATE TABLE IF NOT EXISTS review_rows (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 order_id TEXT NOT NULL,
@@ -288,9 +324,34 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL
             )
             """
-        )
-        conn.execute(
+
+
+def bank_review_rows_schema() -> str:
+    if using_postgres():
+        return """
+            CREATE TABLE IF NOT EXISTS bank_review_rows (
+                id SERIAL PRIMARY KEY,
+                row_type TEXT NOT NULL,
+                bank_row_id TEXT,
+                bank_date TEXT,
+                bank_amount TEXT,
+                bank_description TEXT,
+                inferred_card_last4 TEXT,
+                order_id TEXT,
+                amazon_date TEXT,
+                amazon_amount TEXT,
+                split_group_total TEXT,
+                split_charge_count TEXT,
+                match_status TEXT,
+                confidence INTEGER,
+                reason TEXT,
+                review_state TEXT NOT NULL DEFAULT 'review',
+                note TEXT NOT NULL DEFAULT '',
+                source_batch TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL
+            )
             """
+    return """
             CREATE TABLE IF NOT EXISTS bank_review_rows (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 row_type TEXT NOT NULL,
@@ -313,26 +374,40 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL
             )
             """
-        )
 
 
-def connect() -> sqlite3.Connection:
+def connect() -> Any:
+    if using_postgres():
+        import psycopg
+        from psycopg.rows import dict_row
+
+        return psycopg.connect(DATABASE_URL, row_factory=dict_row)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 
-def query_rows() -> list[sqlite3.Row]:
+def db_execute(conn: Any, sql: str, params: tuple[Any, ...] = ()) -> Any:
+    if using_postgres():
+        sql = sql.replace("?", "%s")
+    return conn.execute(sql, params)
+
+
+def using_postgres() -> bool:
+    return bool(DATABASE_URL)
+
+
+def query_rows() -> list[Any]:
     with connect() as conn:
-        return list(conn.execute("SELECT * FROM review_rows ORDER BY amazon_date DESC, order_id, split_charge_index"))
+        return list(db_execute(conn, "SELECT * FROM review_rows ORDER BY amazon_date DESC, order_id, split_charge_index"))
 
 
-def query_bank_rows() -> list[sqlite3.Row]:
+def query_bank_rows() -> list[Any]:
     with connect() as conn:
-        return list(conn.execute("SELECT * FROM bank_review_rows ORDER BY bank_date DESC, amazon_date DESC, id"))
+        return list(db_execute(conn, "SELECT * FROM bank_review_rows ORDER BY bank_date DESC, amazon_date DESC, id"))
 
 
-def filter_rows(rows: list[sqlite3.Row], filters: dict[str, str]) -> list[sqlite3.Row]:
+def filter_rows(rows: list[Any], filters: dict[str, str]) -> list[Any]:
     result = []
     query = filters["q"].lower()
     for row in rows:
@@ -354,7 +429,7 @@ def filter_rows(rows: list[sqlite3.Row], filters: dict[str, str]) -> list[sqlite
     return result
 
 
-def filter_bank_rows(rows: list[sqlite3.Row], filters: dict[str, str]) -> list[sqlite3.Row]:
+def filter_bank_rows(rows: list[Any], filters: dict[str, str]) -> list[Any]:
     result = []
     query = filters["q"].lower()
     for row in rows:
@@ -377,11 +452,12 @@ def read_uploaded_csv(upload) -> list[dict[str, str]]:
     return list(csv.DictReader(io.StringIO(text)))
 
 
-def import_bank_review_rows(conn: sqlite3.Connection, rows: list[dict[str, str]], batch: str) -> None:
+def import_bank_review_rows(conn: Any, rows: list[dict[str, str]], batch: str) -> None:
     now = datetime.utcnow().isoformat()
     for row in rows:
         state = "approved" if row.get("row_type") == "bank_matched" and int_or_default(row.get("confidence"), 0) >= 80 else "review"
-        conn.execute(
+        db_execute(
+            conn,
             """
             INSERT INTO bank_review_rows (
                 row_type, bank_row_id, bank_date, bank_amount, bank_description, inferred_card_last4,
@@ -412,7 +488,7 @@ def import_bank_review_rows(conn: sqlite3.Connection, rows: list[dict[str, str]]
         )
 
 
-def import_match_rows(conn: sqlite3.Connection, matches: list[dict[str, str]], orders: dict[str, dict[str, str]], batch: str) -> None:
+def import_match_rows(conn: Any, matches: list[dict[str, str]], orders: dict[str, dict[str, str]], batch: str) -> None:
     order_counts = Counter(row.get("order_id", "") for row in matches)
     per_order_index: defaultdict[str, int] = defaultdict(int)
     now = datetime.utcnow().isoformat()
@@ -422,7 +498,8 @@ def import_match_rows(conn: sqlite3.Connection, matches: list[dict[str, str]], o
         per_order_index[order_id] += 1
         split_count = int_or_default(order.get("amazon_transaction_count"), order_counts[order_id])
         review_state = "approved" if row.get("match_status") == "Matched" and int_or_default(row.get("confidence"), 0) >= 80 else "review"
-        conn.execute(
+        db_execute(
+            conn,
             """
             INSERT INTO review_rows (
                 order_id, amazon_date, amazon_status, card_last4, amazon_amount, merchant,
