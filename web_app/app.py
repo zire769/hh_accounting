@@ -51,6 +51,10 @@ def create_app() -> Flask:
     def health():
         return {"ok": True}
 
+    @app.get("/healthz")
+    def healthz():
+        return {"ok": True}
+
     @app.post("/login")
     def login_post():
         password = os.environ.get("REVIEW_APP_PASSWORD", DEFAULT_PASSWORD)

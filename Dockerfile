@@ -10,8 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY amazon_recon ./amazon_recon
 COPY web_app ./web_app
-COPY data/review_app.sqlite3 ./data/review_app.sqlite3
 
 EXPOSE 8000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "web_app.app:app"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8000} web_app.app:app"]
