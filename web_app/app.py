@@ -7,6 +7,7 @@ from pathlib import Path
 import csv
 import io
 import os
+import re
 import secrets
 import sqlite3
 from typing import Any
@@ -32,6 +33,7 @@ DEFAULT_PASSWORD = "change-me"
 def create_app() -> Flask:
     app = Flask(__name__)
     app.secret_key = os.environ.get("REVIEW_APP_SECRET", secrets.token_hex(32))
+    app.jinja_env.filters["clean_order_id"] = clean_order_id
     init_db()
 
     def login_required(view):
@@ -145,7 +147,7 @@ def create_app() -> Flask:
             return redirect(url_for("admin"))
         batch = request.form.get("batch", "").strip() or Path(matches_upload.filename).stem
         matches = read_uploaded_csv(matches_upload)
-        orders = {row["order_id"]: row for row in read_uploaded_csv(orders_upload) if row.get("order_id")}
+        orders = {clean_order_id(row["order_id"]): row for row in read_uploaded_csv(orders_upload) if row.get("order_id")}
         with connect() as conn:
             if request.form.get("replace_batch"):
                 db_execute(conn, "DELETE FROM review_rows WHERE source_batch = ?", (batch,))
@@ -214,7 +216,7 @@ def create_app() -> Flask:
         for row in rows:
             writer.writerow(
                 {
-                    "order_id": row["order_id"],
+                    "order_id": clean_order_id(row["order_id"]),
                     "amazon_date": row["amazon_date"],
                     "card_last4": row["card_last4"],
                     "amazon_amount": f"{row['amazon_amount']:.2f}",
@@ -493,11 +495,11 @@ def import_bank_review_rows(conn: Any, rows: list[dict[str, str]], batch: str) -
 
 
 def import_match_rows(conn: Any, matches: list[dict[str, str]], orders: dict[str, dict[str, str]], batch: str) -> None:
-    order_counts = Counter(row.get("order_id", "") for row in matches)
+    order_counts = Counter(clean_order_id(row.get("order_id", "")) for row in matches)
     per_order_index: defaultdict[str, int] = defaultdict(int)
     now = datetime.utcnow().isoformat()
     for row in matches:
-        order_id = row.get("order_id", "")
+        order_id = clean_order_id(row.get("order_id", ""))
         order = orders.get(order_id, {})
         per_order_index[order_id] += 1
         split_count = int_or_default(order.get("amazon_transaction_count"), order_counts[order_id])
@@ -549,6 +551,15 @@ def money(value: str | None) -> float | None:
     if not value:
         return None
     return float(value.replace("$", "").replace(",", "").strip())
+
+
+def clean_order_id(value: str | None) -> str:
+    if not value:
+        return ""
+    match = re.search(r"\b\d{3}-\d{7}-\d{7}\b", value)
+    if match:
+        return match.group(0)
+    return value.split("[href=", 1)[0].replace("Order #", "").strip()
 
 
 app = create_app()
